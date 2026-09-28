@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Laziz Pizza Sangli - POS, CRM & Delivery Management</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com">
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Space+Grotesk:wght@600;700&display=swap" rel="stylesheet">
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-database-compat.js"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            brand: { 50: '#fff1f0', 100: '#ffe1de', 500: '#e53935', 600: '#d32f2f', 700: '#b71c1c', 900: '#7f1111' }
+          },
+          fontFamily: { sans: ['Plus Jakarta Sans', 'sans-serif'], display: ['Space Grotesk', 'sans-serif'] }
+        }
+      }
+    }
+  </script>
+  <style>
+    @media print {
+      body * { visibility: hidden; }
+      #thermalPrintArea, #thermalPrintArea * { visibility: visible; }
+      #thermalPrintArea {
+        position: absolute; left: 0; top: 0; width: 72mm; margin: 0; padding: 2mm 1mm;
+        font-family: 'Courier New', Courier, monospace; font-size: 11px; line-height: 1.25; color: #000; background: #fff;
+      }
+      @page { size: 80mm auto; margin: 0; }
+    }
+    .hide-scrollbar::-webkit-scrollbar { display: none; }
+    .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+    @keyframes pulse-ring { 0% { transform: scale(0.95); opacity: 0.8; } 50% { transform: scale(1.05); opacity: 1; } 100% { transform: scale(0.95); opacity: 0.8; } }
+    .live-pulse { animation: pulse-ring 2s infinite ease-in-out; }
+  </style>
+</head>
+<body class="bg-stone-100 text-stone-800 font-sans antialiased selection:bg-brand-500 selection:text-white">
+
+  <!-- TOP BAR -->
+  <header class="sticky top-0 z-40 bg-stone-900 text-white shadow-md border-b border-stone-800">
+    <div class="max-w-7xl mx-auto px-3 sm:px-6 py-2.5 flex items-center justify-between gap-3">
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-brand-700 to-amber-500 flex items-center justify-center text-white text-xl font-black shadow">
+          🍕
+        </div>
+        <div>
+          <div class="flex items-center gap-2">
+            <h1 class="text-base sm:text-lg font-black tracking-tight font-display text-white leading-none">LAZIZ PIZZA</h1>
+            <span class="text-[10px] uppercase font-bold px-1.5 py-0.5 rounded bg-brand-600 text-white">Sangli</span>
+          </div>
+          <div class="flex items-center gap-1.5 mt-0.5">
+            <span id="firebaseStatusDot" class="w-2 h-2 rounded-full bg-emerald-500 live-pulse"></span>
+            <span id="firebaseStatusText" class="text-[10px] text-emerald-400 font-medium">Cloud POS Live</span>
+          </div>
+        </div>
+      </div>
+
+      <div id="staffNavContainer" class="flex items-center gap-1.5 bg-stone-800/80 p-1 rounded-xl border border-stone-700">
+        <button id="navCustomerBtn" onclick="switchMainView('customer')" class="px-2.5 sm:px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 bg-brand-600 text-white shadow">
+          <span>🛍️</span><span class="hidden md:inline">Customer Menu</span>
+        </button>
+        <button id="navPosBtn" onclick="switchMainView('pos')" class="px-2.5 sm:px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 text-stone-300 hover:text-white">
+          <span>💻</span><span class="hidden md:inline">Counter POS</span>
+          <span id="posPendingBadge" class="hidden px-1.5 py-0.2 bg-amber-500 text-stone-900 rounded-full text-[10px] font-black">0</span>
+        </button>
+        <button id="navKitchenBtn" onclick="switchMainView('kitchen')" class="px-2.5 sm:px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 text-stone-300 hover:text-white">
+          <span>👨‍🍳</span><span class="hidden md:inline">Kitchen KOT</span>
+          <span id="kitchenPendingBadge" class="hidden px-1.5 py-0.2 bg-brand-500 text-white rounded-full text-[10px] font-black">0</span>
+        </button>
+        <button id="navAdminBtn" onclick="switchMainView('admin')" class="px-2.5 sm:px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 text-stone-300 hover:text-white">
+          <span>📊</span><span class="hidden md:inline">Admin CRM</span>
+        </button>
+      </div>
+
+      <div class="flex items-center gap-2">
+        <div id="activeUserBadge" class="hidden sm:flex flex-col text-right">
+          <span id="activeUserName" class="text-xs font-bold text-stone-200">Customer</span>
+          <span id="activeUserRole" class="text-[10px] text-amber-400 uppercase font-black">Public</span>
+        </div>
+        <button onclick="openStaffLoginModal()" id="staffLoginBtn" class="bg-stone-800 hover:bg-stone-700 text-stone-200 px-3 py-1.5 rounded-xl font-bold text-xs flex items-center gap-1.5 border border-stone-700 transition">
+          <span id="loginBtnIcon">🔒</span><span id="loginBtnText">Staff Login</span>
+        </button>
+        <div id="customerHeaderCart">
+          <button onclick="toggleCustomerCart(true)" class="relative bg-amber-500 hover:bg-amber-400 text-stone-950 px-3 py-1.5 rounded-xl font-bold text-xs sm:text-sm flex items-center gap-2 shadow-sm transition">
+            <span>🛒</span><span class="hidden sm:inline">My Cart</span>
+            <span id="customerCartBadge" class="w-5 h-5 rounded-full bg-stone-900 text-white text-[11px] flex items-center justify-center font-bold">0</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- ================= VIEW 1: CUSTOMER MENU ================= -->
+  <main id="viewCustomer" class="max-w-7xl mx-auto px-3 sm:px-6 py-4 pb-28">
+    <div class="relative overflow-hidden rounded-2xl bg-gradient-to-r from-stone-900 via-stone-800 to-brand-900 text-white p-5 sm:p-7 shadow-lg mb-5 border border-stone-800">
+      <div class="relative z-10 max-w-2xl">
+        <div class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/20 text-emerald-400 text-xs font-bold mb-3 border border-emerald-500/30">
+          <span class="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
+          Accepting Direct Orders in Sangli • 100% Pure Veg
+        </div>
+        <h2 class="text-2xl sm:text-3xl font-extrabold font-display leading-tight mb-2">Crispy Crusts & Loaded Mozzarella</h2>
+        <p class="text-stone-300 text-xs sm:text-sm mb-4">Fast delivery across Vishrambaug & Sangli with WhatsApp live tracking.</p>
+        <div class="flex flex-wrap items-center gap-2 text-xs font-semibold text-stone-200">
+          <span class="bg-stone-800/80 px-2.5 py-1 rounded-lg border border-stone-700">⚡ 30-40 Mins Delivery</span>
+          <span class="bg-stone-800/80 px-2.5 py-1 rounded-lg border border-stone-700">🛵 Free Delivery above ₹299</span>
+          <span class="bg-brand-600/40 text-amber-300 px-2.5 py-1 rounded-lg border border-brand-500/40 font-bold">Use Code: LAZIZDIRECT for 15% OFF</span>
+        </div>
+      </div>
+    </div>
+    <div class="sticky top-[58px] z-30 bg-stone-100/95 backdrop-blur-md py-2.5 mb-4 border-b border-stone-200">
+      <div id="categoryPillContainer" class="flex items-center gap-2 overflow-x-auto hide-scrollbar pb-1 text-xs"></div>
+    </div>
+    <div id="customerProductGrid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4"></div>
+  </main>
+
+  <!-- ================= VIEW 2: COUNTER POS ================= -->
+  <main id="viewPos" class="hidden max-w-7xl mx-auto px-2 sm:px-4 py-3">
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-3">
+      <div class="lg:col-span-7 flex flex-col gap-2">
+        <div class="bg-white p-2.5 rounded-xl shadow-sm border border-stone-200 flex flex-wrap items-center justify-between gap-2">
+          <div class="flex items-center gap-1.5 overflow-x-auto hide-scrollbar text-xs font-bold" id="posCategoryTabs"></div>
+        </div>
+        <div id="posItemGrid" class="grid grid-cols-2 sm:grid-cols-3 gap-2 overflow-y-auto max-h-[calc(100vh-200px)] pr-1"></div>
+      </div>
+
+      <div class="lg:col-span-5">
+        <div class="bg-white rounded-2xl shadow-md border border-stone-200 p-3 sm:p-4 flex flex-col h-[calc(100vh-80px)] sticky top-[70px]">
+          <div class="flex items-center justify-between pb-3 border-b border-stone-200 gap-2">
+            <div class="flex items-center bg-stone-100 p-1 rounded-xl text-xs font-bold w-full">
+              <button onclick="setPosOrderType('Dine-In')" id="posTypeDineIn" class="flex-1 py-1.5 rounded-lg bg-stone-900 text-white transition text-center">Dine-In</button>
+              <button onclick="setPosOrderType('Takeaway')" id="posTypeTakeaway" class="flex-1 py-1.5 rounded-lg text-stone-600 transition text-center">Takeaway</button>
+              <button onclick="setPosOrderType('Delivery')" id="posTypeDelivery" class="flex-1 py-1.5 rounded-lg text-stone-600 transition text-center">Delivery</button>
+            </div>
+          </div>
+
+          <div id="posTableSelector" class="pt-2 flex items-center gap-1.5 overflow-x-auto hide-scrollbar text-xs">
+            <span class="text-stone-400 font-bold text-[11px] whitespace-nowrap">Table:</span>
+            <button onclick="setPosTable('T1')" class="table-pill px-2 py-0.5 rounded bg-brand-600 text-white font-bold text-xs">T1</button>
+            <button onclick="setPosTable('T2')" class="table-pill px-2 py-0.5 rounded bg-stone-100 text-stone-700 font-bold text-xs">T2</button>
+            <button onclick="setPosTable('T3')" class="table-pill px-2 py-0.5 rounded bg-stone-100 text-stone-700 font-bold text-xs">T3</button>
+            <button onclick="setPosTable('T4')" class="table-pill px-2 py-0.5 rounded bg-stone-100 text-stone-700 font-bold text-xs">T4</button>
+            <button onclick="setPosTable('Parcel')" class="table-pill px-2 py-0.5 rounded bg-stone-100 text-stone-700 font-bold text-xs">Parcel</button>
+          </div>
+
+          <!-- Customer CRM Lookup Field -->
+          <div class="grid grid-cols-2 gap-2 mt-2">
+            <input type="tel" id="posCustPhone" oninput="lookupCustomerByPhone(this.value)" placeholder="Customer Mobile (Auto-fills)" class="px-2.5 py-1.5 rounded-lg border border-stone-200 text-xs font-bold focus:ring-1 focus:ring-brand-500 outline-none" />
+            <input type="text" id="posCustName" placeholder="Customer Name" class="px-2.5 py-1.5 rounded-lg border border-stone-200 text-xs focus:ring-1 focus:ring-brand-500 outline-none" />
+          </div>
+          <div id="posAddressRow" class="hidden mt-1.5">
+            <input type="text" id="posCustAddress" placeholder="Delivery Address & Landmark" class="w-full px-2.5 py-1 rounded-lg border border-stone-200 text-xs" />
+          </div>
+
+          <div class="flex-1 overflow-y-auto my-2 pr-1 space-y-2 border-y border-stone-100 py-2" id="posBillContainer"></div>
+
+          <div class="space-y-1.5 text-xs text-stone-600 pt-1">
+            <div class="flex justify-between"><span>Item Subtotal:</span><span id="posSubtotal" class="font-bold text-stone-800">₹0</span></div>
+            <div class="flex justify-between items-center" id="posDiscountSection">
+              <span class="flex items-center gap-1">
+                Discount:
+                <select id="posDiscountSelect" onchange="calculatePosTotals()" class="bg-stone-100 text-[11px] rounded px-1 py-0.5 border border-stone-200">
+                  <option value="0">None (0%)</option>
+                  <option value="5">5% Promo</option>
+                  <option value="10">10% Repeat</option>
+                  <option value="15">15% Special</option>
+                </select>
+              </span>
+              <span id="posDiscountAmount" class="font-bold text-emerald-600">-₹0</span>
+            </div>
+            <div class="flex justify-between items-center text-stone-700">
+              <label class="flex items-center gap-1.5 cursor-pointer">
+                <input type="checkbox" id="posGstCheckbox" onchange="calculatePosTotals()" class="rounded text-brand-600" />
+                <span>Add 5% GST</span>
+              </label>
+              <span id="posGstAmount" class="font-bold">₹0</span>
+            </div>
+            <div class="flex justify-between text-base font-extrabold text-stone-900 pt-1 border-t border-stone-200">
+              <span>Net Payable:</span><span id="posNetTotal" class="text-brand-600 text-lg">₹0</span>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-3 gap-1.5 mt-2">
+            <button onclick="setPosPayment('Cash')" id="posPayCash" class="py-1.5 rounded-lg font-bold text-xs bg-stone-900 text-white">💵 Cash</button>
+            <button onclick="setPosPayment('UPI')" id="posPayUpi" class="py-1.5 rounded-lg font-bold text-xs bg-stone-100 text-stone-700 hover:bg-stone-200">📱 UPI / QR</button>
+            <button onclick="setPosPayment('Card')" id="posPayCard" class="py-1.5 rounded-lg font-bold text-xs bg-stone-100 text-stone-700 hover:bg-stone-200">💳 Card</button>
+          </div>
+
+          <div class="grid grid-cols-3 gap-2 mt-3 pt-2 border-t border-stone-200">
+            <button onclick="confirmClearBillModal()" class="py-2.5 rounded-xl border border-stone-300 text-stone-700 font-bold text-xs">Clear</button>
+            <button onclick="printKOTFromPOS()" class="py-2.5 rounded-xl bg-stone-800 text-amber-300 font-extrabold text-xs">👨‍🍳 KOT</button>
+            <button onclick="settleAndPrintBill(true)" class="py-2.5 rounded-xl bg-brand-600 text-white font-extrabold text-xs shadow-md">🖨️ Settle & Bill</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <!-- ================= VIEW 3: KITCHEN DISPLAY & RIDER DISPATCH ================= -->
+  <main id="viewKitchen" class="hidden max-w-7xl mx-auto px-3 sm:px-6 py-4">
+    <div class="flex items-center justify-between mb-4">
+      <div>
+        <h2 class="text-xl font-bold font-display text-stone-900">Kitchen Display & Delivery Dispatch</h2>
+        <p class="text-xs text-stone-500">Live order tickets with 1-tap rider dispatch</p>
+      </div>
+      <button onclick="testAudioChime()" class="px-3 py-1.5 rounded-lg bg-stone-200 text-xs font-bold text-stone-700">🔔 Bell Test</button>
+    </div>
+    <div id="kitchenTicketsGrid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"></div>
+  </main>
+
+  <!-- ================= VIEW 4: ADMIN BACKEND (CRM & RIDERS) ================= -->
+  <main id="viewAdmin" class="hidden max-w-7xl mx-auto px-3 sm:px-6 py-4">
+    <div class="flex items-center justify-between pb-4 border-b border-stone-200 mb-5">
+      <div>
+        <h2 class="text-2xl font-black font-display text-stone-900">Admin Control Center</h2>
+        <p class="text-xs text-stone-500">Manage Customer CRM, Delivery Riders, Register Z-Reports & Staff</p>
+      </div>
+      <button onclick="printZReport()" class="px-4 py-2 bg-stone-900 text-white rounded-xl font-bold text-xs">📊 Print 80mm Z-Report</button>
+    </div>
+
+    <!-- Admin Metric Tabs -->
+    <div class="flex items-center gap-2 mb-4 border-b border-stone-200 pb-2">
+      <button onclick="switchAdminTab('crm')" id="tabBtnCrm" class="px-3 py-1.5 rounded-lg font-bold text-xs bg-brand-600 text-white">👤 Customer Directory (CRM)</button>
+      <button onclick="switchAdminTab('riders')" id="tabBtnRiders" class="px-3 py-1.5 rounded-lg font-bold text-xs bg-stone-200 text-stone-700">🛵 Delivery Riders</button>
+      <button onclick="switchAdminTab('staff')" id="tabBtnStaff" class="px-3 py-1.5 rounded-lg font-bold text-xs bg-stone-200 text-stone-700">👥 Staff Accounts</button>
+      <button onclick="switchAdminTab('menu')" id="tabBtnMenu" class="px-3 py-1.5 rounded-lg font-bold text-xs bg-stone-200 text-stone-700">🍕 Menu & Prices</button>
+    </div>
+
+    <!-- TAB 1: CUSTOMER CRM -->
+    <div id="adminTabCrm" class="space-y-4">
+      <div class="bg-white rounded-2xl p-4 border border-stone-200 shadow-sm flex items-center justify-between gap-3">
+        <input type="text" id="crmSearchInput" oninput="renderCrmList(this.value)" placeholder="Search by Customer Name or Mobile Number..." class="flex-1 px-3 py-2 rounded-xl border border-stone-300 text-xs outline-none" />
+        <span id="crmTotalCount" class="text-xs font-bold text-stone-500">0 Customers Found</span>
+      </div>
+      <div class="bg-white rounded-2xl border border-stone-200 overflow-hidden shadow-sm">
+        <table class="w-full text-left text-xs">
+          <thead class="bg-stone-50 border-b border-stone-200 text-stone-500 uppercase font-black text-[10px]">
+            <tr>
+              <th class="p-3">Customer</th>
+              <th class="p-3">Saved Delivery Address</th>
+              <th class="p-3 text-center">Total Orders</th>
+              <th class="p-3 text-right">Lifetime Spend</th>
+              <th class="p-3 text-center">Action</th>
+            </tr>
+          </thead>
+          <tbody id="crmTableBody" class="divide-y divide-stone-100"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- TAB 2: DELIVERY RIDERS -->
+    <div id="adminTabRiders" class="hidden space-y-4">
+      <div class="bg-white p-4 rounded-2xl border border-stone-200 shadow-sm flex flex-wrap items-center gap-3">
+        <input type="text" id="newRiderName" placeholder="Rider Name (e.g. Sachin)" class="px-3 py-2 rounded-xl border border-stone-300 text-xs" />
+        <input type="tel" id="newRiderPhone" placeholder="Rider WhatsApp Phone" class="px-3 py-2 rounded-xl border border-stone-300 text-xs" />
+        <button onclick="addNewRider()" class="px-4 py-2 bg-stone-900 text-white rounded-xl font-bold text-xs">+ Add Delivery Rider</button>
+      </div>
+      <div class="grid grid-cols-1 sm:grid-cols-3 gap-4" id="ridersGrid"></div>
+    </div>
+
+    <!-- TAB 3: STAFF ACCOUNTS -->
+    <div id="adminTabStaff" class="hidden space-y-4">
+      <div class="bg-white p-4 rounded-2xl border border-stone-200 shadow-sm flex flex-wrap items-center gap-3">
+        <input type="text" id="newStaffName" placeholder="Staff Name" class="px-3 py-2 rounded-xl border border-stone-300 text-xs" />
+        <input type="number" id="newStaffPin" placeholder="4-Digit PIN" maxlength="4" class="px-3 py-2 rounded-xl border border-stone-300 text-xs font-bold" />
+        <select id="newStaffRole" class="px-3 py-2 rounded-xl border border-stone-300 text-xs font-bold">
+          <option value="cashier">Cashier</option>
+          <option value="kitchen">Kitchen Staff</option>
+          <option value="admin">Admin / Owner</option>
+        </select>
+        <button onclick="adminAddStaff()" class="px-4 py-2 bg-stone-900 text-white rounded-xl font-bold text-xs">+ Create Staff User</button>
+      </div>
+      <div class="space-y-2" id="adminStaffList"></div>
+    </div>
+
+    <!-- TAB 4: MENU & CATALOG -->
+    <div id="adminTabMenu" class="hidden space-y-4">
+      <div class="bg-white p-4 rounded-2xl border border-stone-200 shadow-sm grid grid-cols-1 sm:grid-cols-4 gap-2">
+        <input type="text" id="adminNewName" placeholder="Item Name" class="px-3 py-2 rounded-xl border border-stone-300 text-xs" />
+        <select id="adminNewCategory" class="px-3 py-2 rounded-xl border border-stone-300 text-xs">
+          <option value="Classic Pizza">Classic Pizza</option>
+          <option value="Premium Pizza">Premium Pizza</option>
+          <option value="Paneer Pizza">Paneer Pizza</option>
+          <option value="Exotic Pizza">Exotic Pizza</option>
+          <option value="Sides">Sides</option>
+          <option value="Fries">Fries</option>
+          <option value="Burger">Burger</option>
+          <opti
